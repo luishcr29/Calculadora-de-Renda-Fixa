@@ -22,23 +22,12 @@ except:
 def formatar_moeda(valor: float) -> str:
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# def buscar_cdi():
-#     """Busca CDI atual via API do Banco Central (Séries Temporais SGS)."""
-#     url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/1?formato=json"
-#     try:
-#         resp = requests.get(url, timeout=10)
-#         if resp.status_code == 200:
-#             dados = resp.json()
-#             return float(dados[0]["valor"])
-#     except Exception:
-#         return None
-#     return None
+import requests
 
 def buscar_cdi():
     """
-    Busca o CDI atual via API do Banco Central (série SGS 12).
-    Corrige escala caso o valor venha muito pequeno.
-    Retorna o CDI anual em percentual (% a.a.).
+    Busca o CDI diário via API do Banco Central (série SGS 12)
+    e converte para taxa anual (% a.a.).
     """
     url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/1?formato=json"
     try:
@@ -47,14 +36,14 @@ def buscar_cdi():
         dados = resp.json()
         valor_str = dados[0]["valor"]
 
-        # Converter string para float (se vier com vírgula)
-        valor = float(valor_str.replace(",", "."))
+        # CDI diário em porcentagem
+        cdi_diario_pct = float(valor_str.replace(",", "."))
+        cdi_diario = cdi_diario_pct / 100.0
 
-        # Se valor < 1, provavelmente veio em formato decimal → multiplicar por 100
-        if valor < 1:
-            valor *= 100
+        # Converte para taxa anualizada (252 dias úteis)
+        cdi_anual = (1 + cdi_diario) ** 252 - 1
 
-        return valor  # já em % ao ano
+        return cdi_anual * 100  # em %
     except Exception:
         return None
 
@@ -227,6 +216,7 @@ else:
 
     fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
     st.pyplot(fig)
+
 
 
 
