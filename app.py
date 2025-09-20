@@ -35,21 +35,27 @@ def formatar_moeda(valor: float) -> str:
 #     return None
 
 def buscar_cdi():
+    """
+    Busca o CDI atual via API do Banco Central (série SGS 12).
+    Corrige escala caso o valor venha muito pequeno.
+    Retorna o CDI anual em percentual (% a.a.).
+    """
     url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/1?formato=json"
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
         dados = resp.json()
         valor_str = dados[0]["valor"]
-        # Converter vírgula para ponto, se necessário
+
+        # Converter string para float (se vier com vírgula)
         valor = float(valor_str.replace(",", "."))
-        # Verificar se o valor parece pequeno (por exemplo < 1): talvez o dado seja em decimal ou taxa diária
+
+        # Se valor < 1, provavelmente veio em formato decimal → multiplicar por 100
         if valor < 1:
-            # Se for algo como 0.1490, multiplicar por 100
             valor *= 100
-        return valor
-    except Exception as e:
-        st.error(f"Erro ao buscar CDI: {e}")
+
+        return valor  # já em % ao ano
+    except Exception:
         return None
 
 
@@ -155,7 +161,7 @@ cdi_auto = buscar_cdi()
 if cdi_auto:
     st.info(f"📊 CDI atual (BCB): {cdi_auto:.2f}% ao ano")
 else:
-    st.warning("⚠️ Não foi possível buscar CDI automaticamente, insira manualmente.")
+    st.warning("⚠️ Não foi possível buscar CDI automaticamente. Insira manualmente abaixo.")
 
 def render_inputs(prefix):
     st.subheader(prefix)
@@ -221,5 +227,6 @@ else:
 
     fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
     st.pyplot(fig)
+
 
 
