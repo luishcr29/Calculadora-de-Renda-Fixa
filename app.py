@@ -22,17 +22,36 @@ except:
 def formatar_moeda(valor: float) -> str:
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+# def buscar_cdi():
+#     """Busca CDI atual via API do Banco Central (Séries Temporais SGS)."""
+#     url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/1?formato=json"
+#     try:
+#         resp = requests.get(url, timeout=10)
+#         if resp.status_code == 200:
+#             dados = resp.json()
+#             return float(dados[0]["valor"])
+#     except Exception:
+#         return None
+#     return None
+
 def buscar_cdi():
-    """Busca CDI atual via API do Banco Central (Séries Temporais SGS)."""
     url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados/ultimos/1?formato=json"
     try:
         resp = requests.get(url, timeout=10)
-        if resp.status_code == 200:
-            dados = resp.json()
-            return float(dados[0]["valor"])
-    except Exception:
+        resp.raise_for_status()
+        dados = resp.json()
+        valor_str = dados[0]["valor"]
+        # Converter vírgula para ponto, se necessário
+        valor = float(valor_str.replace(",", "."))
+        # Verificar se o valor parece pequeno (por exemplo < 1): talvez o dado seja em decimal ou taxa diária
+        if valor < 1:
+            # Se for algo como 0.1490, multiplicar por 100
+            valor *= 100
+        return valor
+    except Exception as e:
+        st.error(f"Erro ao buscar CDI: {e}")
         return None
-    return None
+
 
 def calcular_prazo_em_dias(start_date, end_date):
     return (end_date - start_date).days
@@ -202,4 +221,5 @@ else:
 
     fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
     st.pyplot(fig)
+
 
