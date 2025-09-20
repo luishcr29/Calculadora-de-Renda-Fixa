@@ -31,14 +31,9 @@ def buscar_cdi():
         resp.raise_for_status()
         dados = resp.json()
         valor_str = dados[0]["valor"]
-
-        # CDI diário em porcentagem
         cdi_diario_pct = float(valor_str.replace(",", "."))
         cdi_diario = cdi_diario_pct / 100.0
-
-        # Converte para taxa anualizada (252 dias úteis)
         cdi_anual = (1 + cdi_diario) ** 252 - 1
-
         return cdi_anual * 100  # em %
     except Exception:
         return None
@@ -72,7 +67,6 @@ def calcular_investimento(data_inicio, data_fim, produto, tipo, valor_investido,
     prazo = calcular_prazo_em_dias(data_inicio, data_fim)
     tributavel = (produto == "CDB")
 
-    # Taxa efetiva anual
     if tipo == "Pré":
         taxa_efetiva = taxa_anual or 0.0
     else:
@@ -81,18 +75,15 @@ def calcular_investimento(data_inicio, data_fim, produto, tipo, valor_investido,
     bruto = calcular_rendimento(valor_investido, taxa_efetiva, prazo)
     rendimento = bruto - valor_investido
 
-    # IOF (se aplicável)
     iof = 0.0
     if tributavel and prazo < 30:
         iof = rendimento * aliquota_iof(prazo)
 
-    # IR (se aplicável)
     imposto_ir = 0.0
     if tributavel:
         aliquota = obter_aliquota_ir(prazo)
         imposto_ir = (rendimento - iof) * aliquota
 
-    # Taxa de custódia (sobre o período total)
     custo_custodia = valor_investido * (taxa_custodia/100) * (prazo/365)
 
     liquido = bruto - imposto_ir - iof - custo_custodia
@@ -115,16 +106,15 @@ def calcular_investimento(data_inicio, data_fim, produto, tipo, valor_investido,
     }
 
 def gerar_grafico(valor_investido, taxa_anual, prazo, produto, tipo, cdi=None, percentual_cdi=None, taxa_custodia=0.0):
-    """Gera gráfico da evolução do investimento no tempo."""
-    dias = list(range(1, prazo+1))
+    dias = list(range(1, prazo + 1))
     valores_liq = []
     for d in dias:
         parcial = calcular_investimento(
-            date.today(), date.today()+timedelta(days=d), produto, tipo, valor_investido,
+            date.today(), date.today() + timedelta(days=d), produto, tipo, valor_investido,
             taxa_anual=taxa_anual, cdi=cdi, percentual_cdi=percentual_cdi, taxa_custodia=taxa_custodia
         )
         valores_liq.append(parcial["valor_liquido"])
-    fig, ax = plt.subplots(figsize=(7,4))
+    fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(dias, valores_liq, label="Valor Líquido")
     ax.set_title("Evolução do Investimento")
     ax.set_xlabel("Dias")
@@ -137,114 +127,114 @@ def gerar_grafico(valor_investido, taxa_anual, prazo, produto, tipo, cdi=None, p
 st.title("📈 Calculadora de Rendimento — Renda Fixa")
 st.write("Calcule e compare CDB, LCI e LCA, considerando IR, IOF e taxa de custódia.")
 
-comparar = st.checkbox("Comparar dois investimentos?")
-
-# CDI automático
 cdi_auto = buscar_cdi()
 if cdi_auto:
-    st.info(f"📊 CDI atual (BCB): {cdi_auto:.2f}% ao ano")
+    st.info(f"📊 CDI atual (BCB): **{cdi_auto:.2f}%** ao ano")
 else:
-    st.warning("⚠️ Não foi possível buscar o CDI automaticamente. Insira o valor manualmente abaixo.")
+    st.warning("⚠️ Não foi possível buscar o CDI automaticamente. Insira o valor manualmente.")
 
-def render_inputs(prefix):
-    st.subheader(prefix)
-    col1, col2 = st.columns(2)
-    with col1:
-        data_inicio = st.date_input("Data início", value=date.today(), key=prefix+"_start")
-        data_fim = st.date_input("Data fim", value=date.today()+timedelta(days=365), key=prefix+"_end")
-        produto = st.selectbox("Produto", ("CDB","LCI","LCA"), key=prefix+"_produto")
-        tipo = st.selectbox("Tipo de rendimento", ("Pré","Pós"), key=prefix+"_tipo")
-    with col2:
-        valor_investido = st.number_input("Valor investido (R$)", min_value=100.0, value=1000.0, step=100.0, key=prefix+"_valor")
-        taxa_custodia = st.number_input("Taxa de custódia (% ao ano)", min_value=0.0, value=0.0, step=0.1, key=prefix+"_custodia", format="%.2f")
-        taxa_anual = None
-        cdi = None
-        percentual_cdi = None
-        if tipo == "Pré":
-            taxa_anual = st.number_input("Taxa anual (%)", value=10.0, step=1.0, key=prefix+"_taxa")
-        else:
-            cdi = cdi_auto or st.number_input("CDI anual atual (%)", value=13.65, step=0.1, key=prefix+"_cdi", format="%.2f")
-            percentual_cdi = st.number_input("Percentual do CDI (%)", value=100.0, step=1.0, key=prefix+"_pcdi")
-    return data_inicio, data_fim, produto, tipo, valor_investido, taxa_anual, cdi, percentual_cdi, taxa_custodia
+# --- Seção de Inputs ---
+with st.expander("💰 Configurações do Investimento", expanded=True):
+    comparar = st.checkbox("Comparar dois investimentos?")
 
-# --- Execução principal ---
-
-if comparar:
-    col1, col2 = st.columns(2)
-    with col1:
-        p1 = render_inputs("Investimento 1")
-    with col2:
-        p2 = render_inputs("Investimento 2")
-
-    inv1 = calcular_investimento(*p1)
-    inv2 = calcular_investimento(*p2)
-
-    st.markdown("---")
-    st.subheader("📊 Comparativo dos Investimentos")
-    
-    # Criar DataFrame para exibição
-    df = pd.DataFrame([inv1, inv2])
-    
-    # Renomear colunas para melhor clareza
-    df_fmt = df.rename(columns={
-        "produto": "Produto",
-        "prazo": "Prazo (dias)",
-        "valor_investido": "Valor Investido",
-        "valor_bruto": "Valor Bruto",
-        "valor_liquido": "Valor Líquido",
-        "rentabilidade_anual": "Rentabilidade Anual (%)"
-    })
-    
-    # Selecionar e formatar colunas
-    df_exibicao = df_fmt[["Produto", "Prazo (dias)", "Valor Investido", "Valor Líquido", "Rentabilidade Anual (%)"]].copy()
-    df_exibicao["Valor Investido"] = df_exibicao["Valor Investido"].apply(formatar_moeda)
-    df_exibicao["Valor Líquido"] = df_exibicao["Valor Líquido"].apply(formatar_moeda)
-    df_exibicao["Rentabilidade Anual (%)"] = df_exibicao["Rentabilidade Anual (%)"].apply(lambda x: f"{x:.2f}%")
-
-    st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
-
-    melhor = "Investimento 1" if inv1["rentabilidade_anual"] > inv2["rentabilidade_anual"] else "Investimento 2"
-    st.success(f"🏆 **O melhor investimento é: {melhor}**")
-
-else:
-    p = render_inputs("Investimento")
-    inv = calcular_investimento(*p)
-    
-    st.markdown("---")
-    st.subheader("📊 Resultados do seu Investimento")
-
-    col_principal, col_secundaria = st.columns(2)
-
-    with col_principal:
-        st.metric(
-            label="Valor Líquido Final",
-            value=formatar_moeda(inv['valor_liquido']),
-            delta=f"Ganho: {formatar_moeda(inv['valor_liquido'] - inv['valor_investido'])}"
-        )
-
-        st.metric(
-            label="Rentabilidade Líquida Total",
-            value=f"{inv['rentabilidade']:.2f}%"
-        )
-        
-        st.metric(
-            label="Rentabilidade Anualizada",
-            value=f"{inv['rentabilidade_anual']:.2f}%"
-        )
-        
-    with col_secundaria:
-        fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
-        st.pyplot(fig)
-
-    st.markdown("---")
-    with st.expander("Detalhes da Tributação e Custos"):
+    def render_inputs(prefix):
+        st.subheader(prefix)
         col1, col2 = st.columns(2)
         with col1:
-            st.write(f"**Prazo:** {inv['prazo']} dias")
-            st.write(f"**Valor Investido:** {formatar_moeda(inv['valor_investido'])}")
-            st.write(f"**Valor Bruto:** {formatar_moeda(inv['valor_bruto'])}")
-            
+            data_inicio = st.date_input("📆 Data início", value=date.today(), key=prefix+"_start")
+            data_fim = st.date_input("🗓️ Data fim", value=date.today()+timedelta(days=365), key=prefix+"_end")
+            produto = st.selectbox("🛍️ Produto", ("CDB","LCI","LCA"), key=prefix+"_produto")
+            tipo = st.selectbox("⚙️ Tipo de rendimento", ("Pré","Pós"), key=prefix+"_tipo")
         with col2:
-            st.write(f"**Imposto de Renda (IR):** {formatar_moeda(inv['imposto_ir'])}")
-            st.write(f"**Imposto sobre Operações Financeiras (IOF):** {formatar_moeda(inv['iof'])}")
-            st.write(f"**Taxa de Custódia:** {formatar_moeda(inv['custodia'])}")
+            valor_investido = st.number_input("💵 Valor investido (R$)", min_value=100.0, value=1000.0, step=100.0, key=prefix+"_valor")
+            taxa_custodia = st.number_input("📉 Taxa de custódia (% ao ano)", min_value=0.0, value=0.0, step=0.1, format="%.2f", key=prefix+"_custodia")
+            taxa_anual = None
+            cdi = None
+            percentual_cdi = None
+            if tipo == "Pré":
+                taxa_anual = st.number_input("Taxa anual (%)", value=10.0, step=1.0, key=prefix+"_taxa")
+            else:
+                cdi = cdi_auto or st.number_input("CDI anual atual (%)", value=13.65, step=0.1, format="%.2f", key=prefix+"_cdi")
+                percentual_cdi = st.number_input("Percentual do CDI (%)", value=100.0, step=1.0, key=prefix+"_pcdi")
+        
+        # Validação de datas
+        if data_fim <= data_inicio:
+            st.error("A data de fim deve ser posterior à data de início.")
+            return None, None, None, None, None, None, None, None, None
+        
+        return data_inicio, data_fim, produto, tipo, valor_investido, taxa_anual, cdi, percentual_cdi, taxa_custodia
+
+    # Execução principal e exibição dos resultados
+    if comparar:
+        col1, col2 = st.columns(2)
+        with col1:
+            p1 = render_inputs("Investimento 1")
+        with col2:
+            p2 = render_inputs("Investimento 2")
+        
+        if p1 and p2:
+            inv1 = calcular_investimento(*p1)
+            inv2 = calcular_investimento(*p2)
+            
+            with st.expander("📊 Comparativo dos Investimentos", expanded=True):
+                df = pd.DataFrame([inv1, inv2])
+                df_fmt = df.rename(columns={
+                    "produto": "Produto",
+                    "prazo": "Prazo (dias)",
+                    "valor_investido": "Valor Investido",
+                    "valor_liquido": "Valor Líquido",
+                    "rentabilidade_anual": "Rentabilidade Anual (%)"
+                })
+                df_exibicao = df_fmt[["Produto", "Prazo (dias)", "Valor Investido", "Valor Líquido", "Rentabilidade Anual (%)"]].copy()
+                df_exibicao["Valor Investido"] = df_exibicao["Valor Investido"].apply(formatar_moeda)
+                df_exibicao["Valor Líquido"] = df_exibicao["Valor Líquido"].apply(formatar_moeda)
+                df_exibicao["Rentabilidade Anual (%)"] = df_exibicao["Rentabilidade Anual (%)"].apply(lambda x: f"{x:.2f}%")
+                
+                st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
+                melhor = "Investimento 1" if inv1["rentabilidade_anual"] > inv2["rentabilidade_anual"] else "Investimento 2"
+                st.success(f"🏆 **O melhor investimento é: {melhor}**")
+        else:
+            st.warning("⚠️ Preencha os campos de ambos os investimentos para comparar.")
+
+    else:
+        p = render_inputs("Investimento")
+        
+        if p:
+            inv = calcular_investimento(*p)
+            
+            st.markdown("---")
+            st.subheader("🎯 Resultado do seu Investimento")
+            
+            col_principal, col_secundaria = st.columns(2)
+            
+            with col_principal:
+                st.metric(
+                    label="💰 Valor Líquido Final",
+                    value=formatar_moeda(inv['valor_liquido']),
+                    delta=f"Ganho: {formatar_moeda(inv['valor_liquido'] - inv['valor_investido'])}"
+                )
+                
+                st.metric(
+                    label="📊 Rentabilidade Líquida Total",
+                    value=f"{inv['rentabilidade']:.2f}%"
+                )
+                
+                st.metric(
+                    label="📈 Rentabilidade Anualizada",
+                    value=f"{inv['rentabilidade_anual']:.2f}%"
+                )
+            
+            with col_secundaria:
+                fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
+                st.pyplot(fig)
+            
+            with st.expander("🧾 Detalhes da Tributação e Custos"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Prazo:** {inv['prazo']} dias")
+                    st.write(f"**Valor Investido:** {formatar_moeda(inv['valor_investido'])}")
+                    st.write(f"**Valor Bruto:** {formatar_moeda(inv['valor_bruto'])}")
+                with col2:
+                    st.write(f"**Imposto de Renda (IR):** {formatar_moeda(inv['imposto_ir'])}")
+                    st.write(f"**Imposto sobre Operações Financeiras (IOF):** {formatar_moeda(inv['iof'])}")
+                    st.write(f"**Taxa de Custódia:** {formatar_moeda(inv['custodia'])}")
