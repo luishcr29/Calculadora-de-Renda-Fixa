@@ -162,15 +162,15 @@ def render_inputs(prefix):
         tipo = st.selectbox("Tipo de rendimento", ("Pré","Pós"), key=prefix+"_tipo")
     with col2:
         valor_investido = st.number_input("Valor investido (R$)", min_value=100.0, value=1000.0, step=100.0, key=prefix+"_valor")
-        taxa_custodia = st.number_input("Taxa de custódia (% ao ano)", min_value=0.0, value=0.0, step=0.01, key=prefix+"_custodia")
+        taxa_custodia = st.number_input("Taxa de custódia (% ao ano)", min_value=0.0, value=0.0, step=1.0, key=prefix+"_custodia")
         taxa_anual = None
         cdi = None
         percentual_cdi = None
         if tipo == "Pré":
-            taxa_anual = st.number_input("Taxa anual (%)", value=10.0, step=0.01, key=prefix+"_taxa")
+            taxa_anual = st.number_input("Taxa anual (%)", value=10.0, step=1.0, key=prefix+"_taxa")
         else:
-            cdi = cdi_auto or st.number_input("CDI anual atual (%)", value=13.65, step=0.01, key=prefix+"_cdi")
-            percentual_cdi = st.number_input("Percentual do CDI (%)", value=100.0, step=0.01, key=prefix+"_pcdi")
+            cdi = cdi_auto or st.number_input("CDI anual atual (%)", value=13.65, step=1.0, key=prefix+"_cdi")
+            percentual_cdi = st.number_input("Percentual do CDI (%)", value=100.0, step=1.0, key=prefix+"_pcdi")
     return data_inicio, data_fim, produto, tipo, valor_investido, taxa_anual, cdi, percentual_cdi, taxa_custodia
 
 # Execução principal
@@ -216,6 +216,7 @@ else:
 
     fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
     st.pyplot(fig)
+
 
 
 
