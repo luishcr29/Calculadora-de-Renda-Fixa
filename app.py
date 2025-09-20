@@ -14,15 +14,11 @@ try:
 except:
     locale.setlocale(locale.LC_ALL, "")
 
-# ---------- Funções auxiliares ----------
+# --- Funções auxiliares ---
 
-# def formatar_moeda(valor):
-#     """Formata número como moeda brasileira (R$ 1.234,56)."""
-#     return locale.currency(valor, grouping=True, symbol=True)
 def formatar_moeda(valor: float) -> str:
+    """Formata número como moeda brasileira (R$ 1.234,56)."""
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-import requests
 
 def buscar_cdi():
     """
@@ -47,7 +43,6 @@ def buscar_cdi():
     except Exception:
         return None
 
-
 def calcular_prazo_em_dias(start_date, end_date):
     return (end_date - start_date).days
 
@@ -65,7 +60,7 @@ def aliquota_iof(dias):
     """Tabela regressiva IOF (0 a 30 dias)."""
     if dias >= 30:
         return 0.0
-    return (30 - dias) / 30  # Ex: 1 dia -> 96.67% de IOF, 29 dias -> 3.33%
+    return (30 - dias) / 30
 
 def calcular_rendimento(valor_investido, taxa_anual_percent, prazo_dias):
     taxa_anual = taxa_anual_percent / 100.0
@@ -137,11 +132,10 @@ def gerar_grafico(valor_investido, taxa_anual, prazo, produto, tipo, cdi=None, p
     ax.legend()
     return fig
 
-# ---------- Interface Streamlit ----------
+# --- Interface Streamlit ---
 
 st.title("📈 Calculadora de Rendimento — Renda Fixa")
-
-st.write("Calcule e compare CDB / LCI / LCA com IR, IOF e taxa de custódia.")
+st.write("Calcule e compare CDB, LCI e LCA, considerando IR, IOF e taxa de custódia.")
 
 comparar = st.checkbox("Comparar dois investimentos?")
 
@@ -150,7 +144,7 @@ cdi_auto = buscar_cdi()
 if cdi_auto:
     st.info(f"📊 CDI atual (BCB): {cdi_auto:.2f}% ao ano")
 else:
-    st.warning("⚠️ Não foi possível buscar CDI automaticamente. Insira manualmente abaixo.")
+    st.warning("⚠️ Não foi possível buscar o CDI automaticamente. Insira o valor manualmente abaixo.")
 
 def render_inputs(prefix):
     st.subheader(prefix)
@@ -162,18 +156,19 @@ def render_inputs(prefix):
         tipo = st.selectbox("Tipo de rendimento", ("Pré","Pós"), key=prefix+"_tipo")
     with col2:
         valor_investido = st.number_input("Valor investido (R$)", min_value=100.0, value=1000.0, step=100.0, key=prefix+"_valor")
-        taxa_custodia = st.number_input("Taxa de custódia (% ao ano)", min_value=0.0, value=0.0, step=1.0, key=prefix+"_custodia")
+        taxa_custodia = st.number_input("Taxa de custódia (% ao ano)", min_value=0.0, value=0.0, step=0.1, key=prefix+"_custodia", format="%.2f")
         taxa_anual = None
         cdi = None
         percentual_cdi = None
         if tipo == "Pré":
             taxa_anual = st.number_input("Taxa anual (%)", value=10.0, step=1.0, key=prefix+"_taxa")
         else:
-            cdi = cdi_auto or st.number_input("CDI anual atual (%)", value=13.65, step=1.0, key=prefix+"_cdi")
+            cdi = cdi_auto or st.number_input("CDI anual atual (%)", value=13.65, step=0.1, key=prefix+"_cdi", format="%.2f")
             percentual_cdi = st.number_input("Percentual do CDI (%)", value=100.0, step=1.0, key=prefix+"_pcdi")
     return data_inicio, data_fim, produto, tipo, valor_investido, taxa_anual, cdi, percentual_cdi, taxa_custodia
 
-# Execução principal
+# --- Execução principal ---
+
 if comparar:
     col1, col2 = st.columns(2)
     with col1:
@@ -184,40 +179,72 @@ if comparar:
     inv1 = calcular_investimento(*p1)
     inv2 = calcular_investimento(*p2)
 
-    st.subheader("📊 Comparação")
+    st.markdown("---")
+    st.subheader("📊 Comparativo dos Investimentos")
+    
+    # Criar DataFrame para exibição
     df = pd.DataFrame([inv1, inv2])
-    df_fmt = df.copy()
-    df_fmt["valor_investido"] = df_fmt["valor_investido"].apply(formatar_moeda)
-    df_fmt["valor_bruto"] = df_fmt["valor_bruto"].apply(formatar_moeda)
-    df_fmt["valor_liquido"] = df_fmt["valor_liquido"].apply(formatar_moeda)
-    df_fmt["imposto_ir"] = df_fmt["imposto_ir"].apply(formatar_moeda)
-    df_fmt["iof"] = df_fmt["iof"].apply(formatar_moeda)
-    df_fmt["custodia"] = df_fmt["custodia"].apply(formatar_moeda)
-    st.dataframe(df_fmt)
+    
+    # Renomear colunas para melhor clareza
+    df_fmt = df.rename(columns={
+        "produto": "Produto",
+        "prazo": "Prazo (dias)",
+        "valor_investido": "Valor Investido",
+        "valor_bruto": "Valor Bruto",
+        "valor_liquido": "Valor Líquido",
+        "rentabilidade_anual": "Rentabilidade Anual (%)"
+    })
+    
+    # Selecionar e formatar colunas
+    df_exibicao = df_fmt[["Produto", "Prazo (dias)", "Valor Investido", "Valor Líquido", "Rentabilidade Anual (%)"]].copy()
+    df_exibicao["Valor Investido"] = df_exibicao["Valor Investido"].apply(formatar_moeda)
+    df_exibicao["Valor Líquido"] = df_exibicao["Valor Líquido"].apply(formatar_moeda)
+    df_exibicao["Rentabilidade Anual (%)"] = df_exibicao["Rentabilidade Anual (%)"].apply(lambda x: f"{x:.2f}%")
+
+    st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
 
     melhor = "Investimento 1" if inv1["rentabilidade_anual"] > inv2["rentabilidade_anual"] else "Investimento 2"
-    st.success(f"✅ Melhor investimento: {melhor}")
+    st.success(f"🏆 **O melhor investimento é: {melhor}**")
 
 else:
     p = render_inputs("Investimento")
     inv = calcular_investimento(*p)
+    
+    st.markdown("---")
+    st.subheader("📊 Resultados do seu Investimento")
 
-    st.subheader("📊 Resultado")
-    st.write(f"Produto: {inv['produto']} — {inv['tipo']}")
-    st.write(f"Prazo: {inv['prazo']} dias")
-    st.write(f"Valor investido: {formatar_moeda(inv['valor_investido'])}")
-    st.write(f"Valor bruto: {formatar_moeda(inv['valor_bruto'])}")
-    st.write(f"IOF: {formatar_moeda(inv['iof'])}")
-    st.write(f"Imposto de Renda: {formatar_moeda(inv['imposto_ir'])}")
-    st.write(f"Custódia: {formatar_moeda(inv['custodia'])}")
-    st.write(f"Valor líquido: {formatar_moeda(inv['valor_liquido'])}")
-    st.write(f"Rentabilidade líquida: {inv['rentabilidade']:.2f}%")
-    st.write(f"Rentabilidade anual: {inv['rentabilidade_anual']:.2f}%")
+    col_principal, col_secundaria = st.columns(2)
 
-    fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
-    st.pyplot(fig)
+    with col_principal:
+        st.metric(
+            label="Valor Líquido Final",
+            value=formatar_moeda(inv['valor_liquido']),
+            delta=f"Ganho: {formatar_moeda(inv['valor_liquido'] - inv['valor_investido'])}"
+        )
 
+        st.metric(
+            label="Rentabilidade Líquida Total",
+            value=f"{inv['rentabilidade']:.2f}%"
+        )
+        
+        st.metric(
+            label="Rentabilidade Anualizada",
+            value=f"{inv['rentabilidade_anual']:.2f}%"
+        )
+        
+    with col_secundaria:
+        fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
+        st.pyplot(fig)
 
-
-
-
+    st.markdown("---")
+    with st.expander("Detalhes da Tributação e Custos"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Prazo:** {inv['prazo']} dias")
+            st.write(f"**Valor Investido:** {formatar_moeda(inv['valor_investido'])}")
+            st.write(f"**Valor Bruto:** {formatar_moeda(inv['valor_bruto'])}")
+            
+        with col2:
+            st.write(f"**Imposto de Renda (IR):** {formatar_moeda(inv['imposto_ir'])}")
+            st.write(f"**Imposto sobre Operações Financeiras (IOF):** {formatar_moeda(inv['iof'])}")
+            st.write(f"**Taxa de Custódia:** {formatar_moeda(inv['custodia'])}")
