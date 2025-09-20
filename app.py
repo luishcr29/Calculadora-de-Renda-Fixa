@@ -16,9 +16,11 @@ except:
 
 # ---------- Funções auxiliares ----------
 
-def formatar_moeda(valor):
-    """Formata número como moeda brasileira (R$ 1.234,56)."""
-    return locale.currency(valor, grouping=True, symbol=True)
+# def formatar_moeda(valor):
+#     """Formata número como moeda brasileira (R$ 1.234,56)."""
+#     return locale.currency(valor, grouping=True, symbol=True)
+def formatar_moeda(valor: float) -> str:
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def buscar_cdi():
     """Busca CDI atual via API do Banco Central (Séries Temporais SGS)."""
@@ -200,3 +202,4 @@ else:
 
     fig = gerar_grafico(inv['valor_investido'], p[5], inv['prazo'], inv['produto'], inv['tipo'], p[6], p[7], p[8])
     st.pyplot(fig)
+
